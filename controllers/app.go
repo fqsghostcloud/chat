@@ -10,18 +10,15 @@ type baseController struct {
 	beego.Controller
 }
 
-// AppController handles the welcome screen that allows user to pick a technology and username.
 type AppController struct {
 	baseController
 }
 
-// Get implemented Get() method for AppController.
 func (this *AppController) Get() {
 	fmt.Println("hahahaha")
 	this.TplName = "welcome.html"
 }
 
-// Join method handles POST requests for AppController.
 func (this *AppController) Join() {
 	// Get form value.
 	uname := this.GetString("uname")
@@ -34,8 +31,6 @@ func (this *AppController) Join() {
 	}
 
 	switch tech {
-	case "longpolling":
-		this.Redirect("/lp?uname="+uname, 302)
 	case "websocket":
 		this.Redirect("/ws?uname="+uname, 302)
 	default:
