@@ -1,0 +1,34 @@
+{{template "base/base.html" .}}
+{{define "head"}}
+<title>welcome- app_intro</title>
+{{end}}
+{{define "body"}}
+<div class="container" style="width: 500px;">
+    <h3>set_profile</h3>
+    <br>
+    <form action="/join" method="post" class="form-horizontal">
+        <div class="form-group">
+            <label class="col-md-3 control-label">username</label>
+            <div class="col-md-5">
+                  <input type="text" class="form-control" name="uname" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="col-md-3 control-label">technology</label>
+            <div class="col-md-5">
+                <select class="form-control" name="tech">
+                    <option value="longpolling">longpolling</option>
+                    <option value="websocket">websocket</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="col-sm-offset-3 col-sm-10">
+                <button type="submit" class="btn btn-info">enter_chat</button>
+            </div>
+        </div>
+    </form>
+</div>
+{{end}}
