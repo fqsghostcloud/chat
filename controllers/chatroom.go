@@ -10,77 +10,71 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type Subscription struct {
-	Archive []models.Event      // All the events from the archive.
-	New     <-chan models.Event // New events coming in.
+// init chat room
+func init() {
+	go chatroom()
 }
 
 func newEvent(ep models.EventType, user, msg string) models.Event {
 	return models.Event{ep, user, int(time.Now().Unix()), msg}
 }
 
-func Join(user string, ws *websocket.Conn) {
-	subscribe <- Subscriber{Name: user, Conn: ws}
+func Join(userName string, ws *websocket.Conn) {
+	comeinChatterCh <- Chatter{Name: userName, Conn: ws}
 }
 
 func Leave(user string) {
-	unsubscribe <- user
+	exitChatterCh <- user
 }
 
-type Subscriber struct {
+type Chatter struct {
 	Name string
 	Conn *websocket.Conn // Only for WebSocket users; otherwise nil.
 }
 
 var (
 	// Channel for new join users.
-	subscribe = make(chan Subscriber, 10)
+	comeinChatterCh = make(chan Chatter, 10)
 	// Channel for exit users.
-	unsubscribe = make(chan string, 10)
-	// Send events here to publish them.
-	publish = make(chan models.Event, 10)
-	// Long polling waiting list.
-	waitingList = list.New()
-	subscribers = list.New()
+	exitChatterCh = make(chan string, 10)
+	// Send events here to commonInfoCh them.
+	commonInfoCh = make(chan models.Event, 10)
+
+	chatterLists = list.New()
 )
 
 // This function handles all incoming chan messages.
 func chatroom() {
 	for {
 		select {
-		case sub := <-subscribe:
-			if !isUserExist(subscribers, sub.Name) {
-				subscribers.PushBack(sub) // Add user to the end of list.
+		case chatter := <-comeinChatterCh:
+			if !isUserExist(chatterLists, chatter.Name) {
+				chatterLists.PushBack(chatter) // Add user to the end of list.
 				// Publish a JOIN event.
-				publish <- newEvent(models.EVENT_JOIN, sub.Name, "")
-				beego.Info("New user:", sub.Name, ";WebSocket:", sub.Conn != nil)
+				commonInfoCh <- newEvent(models.EVENT_JOIN, chatter.Name, "")
+				beego.Info("New user:", chatter.Name, ";WebSocket:", chatter.Conn != nil)
 			} else {
-				beego.Info("Old user:", sub.Name, ";WebSocket:", sub.Conn != nil)
+				beego.Info("Old user:", chatter.Name, ";WebSocket:", chatter.Conn != nil)
 			}
-		case event := <-publish:
-			// Notify waiting list.
-			for ch := waitingList.Back(); ch != nil; ch = ch.Prev() {
-				ch.Value.(chan bool) <- true
-				waitingList.Remove(ch)
-			}
+		case event := <-commonInfoCh:
 
 			broadcastWebSocket(event)
-			models.NewArchive(event)
+			// models.AddEvent(event) 从events list 获取消息历史记录
 
 			if event.Type == models.EVENT_MESSAGE {
 				beego.Info("Message from", event.User, ";Content:", event.Content)
 			}
-		case unsub := <-unsubscribe:
-			for sub := subscribers.Front(); sub != nil; sub = sub.Next() {
-				if sub.Value.(Subscriber).Name == unsub {
-					subscribers.Remove(sub)
+		case unsub := <-exitChatterCh:
+			for sub := chatterLists.Front(); sub != nil; sub = sub.Next() {
+				if sub.Value.(Chatter).Name == unsub {
+					chatterLists.Remove(sub)
 					// Clone connection.
-					ws := sub.Value.(Subscriber).Conn
+					ws := sub.Value.(Chatter).Conn
 					if ws != nil {
 						ws.Close()
 						beego.Error("WebSocket closed:", unsub)
 					}
-					publish <- newEvent(models.EVENT_LEAVE, unsub, "") // Publish a LEAVE event.
+					commonInfoCh <- newEvent(models.EVENT_LEAVE, unsub, "") // Publish a LEAVE event.
 					break
 				}
 			}
@@ -88,13 +82,9 @@ func chatroom() {
 	}
 }
 
-func init() {
-	go chatroom()
-}
-
 func isUserExist(subscribers *list.List, user string) bool {
 	for sub := subscribers.Front(); sub != nil; sub = sub.Next() {
-		if sub.Value.(Subscriber).Name == user {
+		if sub.Value.(Chatter).Name == user {
 			return true
 		}
 	}

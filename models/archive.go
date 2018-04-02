@@ -6,36 +6,37 @@ import (
 
 type EventType int
 
+// event code
 const (
-	EVENT_JOIN = iota
-	EVENT_LEAVE
-	EVENT_MESSAGE
+	EVENT_JOIN    = 0
+	EVENT_LEAVE   = 1
+	EVENT_MESSAGE = 2
 )
 
 type Event struct {
 	Type      EventType // JOIN, LEAVE, MESSAGE
 	User      string
-	Timestamp int // Unix timestamp (secs)
+	Timestamp int // event time
 	Content   string
 }
 
-const archiveSize = 20
+const eventStoreSize = 20
 
-// Event archives.
-var archive = list.New()
+var eventLists = list.New()
 
-// NewArchive saves new event to archive list.
-func NewArchive(event Event) {
-	if archive.Len() >= archiveSize {
-		archive.Remove(archive.Front())
+// AddEvent saves new event to events list.
+func AddEvent(event Event) {
+	if eventLists.Len() >= eventStoreSize {
+		eventLists.Remove(eventLists.Front())
 	}
-	archive.PushBack(event)
+	eventLists.PushBack(event)
 }
 
+//历史记录
 // GetEvents returns all events after lastReceived.
 func GetEvents(lastReceived int) []Event {
-	events := make([]Event, 0, archive.Len())
-	for event := archive.Front(); event != nil; event = event.Next() {
+	events := make([]Event, 0, eventLists.Len())
+	for event := eventLists.Front(); event != nil; event = event.Next() {
 		e := event.Value.(Event)
 		if e.Timestamp > int(lastReceived) {
 			events = append(events, e)

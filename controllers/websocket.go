@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"chat/models"
@@ -25,7 +26,6 @@ func (this *WebSocketController) Get() {
 	}
 
 	this.TplName = "websocket.html"
-	this.Data["IsWebSocket"] = true
 	this.Data["UserName"] = uname
 }
 
@@ -39,12 +39,14 @@ func (this *WebSocketController) Join() {
 
 	// Upgrade from http request to WebSocket.
 	ws, err := websocket.Upgrade(this.Ctx.ResponseWriter, this.Ctx.Request, nil, 1024, 1024)
-	if _, ok := err.(websocket.HandshakeError); ok {
-		http.Error(this.Ctx.ResponseWriter, "Not a websocket handshake", 400)
-		return
-	} else if err != nil {
-		beego.Error("Cannot setup WebSocket connection:", err)
-		return
+	if err != nil {
+		if _, ok := err.(websocket.HandshakeError); ok {
+			http.Error(this.Ctx.ResponseWriter, "Not a websocket handshake", 400)
+			return
+		} else {
+			beego.Error("Cannot setup WebSocket connection:", err)
+			return
+		}
 	}
 
 	// Join chat room.
@@ -55,9 +57,11 @@ func (this *WebSocketController) Join() {
 	for {
 		_, p, err := ws.ReadMessage()
 		if err != nil {
+			fmt.Printf("\nwebsocket message receive loop erro[%s]\n", err.Error())
 			return
 		}
-		publish <- newEvent(models.EVENT_MESSAGE, uname, string(p))
+
+		commonInfoCh <- newEvent(models.EVENT_MESSAGE, uname, string(p))
 	}
 }
 
@@ -69,13 +73,13 @@ func broadcastWebSocket(event models.Event) {
 		return
 	}
 
-	for sub := subscribers.Front(); sub != nil; sub = sub.Next() {
+	for chatterItem := chatterLists.Front(); chatterItem != nil; chatterItem = chatterItem.Next() {
 		// Immediately send event to WebSocket users.
-		ws := sub.Value.(Subscriber).Conn
+		ws := chatterItem.Value.(Chatter).Conn //断言
 		if ws != nil {
 			if ws.WriteMessage(websocket.TextMessage, data) != nil {
 				// User disconnected.
-				unsubscribe <- sub.Value.(Subscriber).Name
+				exitChatterCh <- chatterItem.Value.(Chatter).Name
 			}
 		}
 	}
